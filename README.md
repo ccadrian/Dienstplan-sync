@@ -37,13 +37,15 @@ Das Skript `scripts/setup.sh` erledigt alles: Projekt anlegen, Abrechnung verkn�
 Voraussetzungen: ein Rechnungskonto in Google Cloud (Kreditkarte) und ein [Anthropic API Key](https://console.anthropic.com/settings/keys).
 
 1. <https://shell.cloud.google.com> öffnen. Du bist dort schon mit deinem Google-Konto angemeldet.
-2. Repo holen (es ist privat, deshalb einmal bei GitHub anmelden):
-   ```bash
-   gh auth login        # GitHub.com → HTTPS → "Login with a web browser"
-   gh repo clone ccadrian/Dienstplan-sync
-   cd Dienstplan-sync
-   bash scripts/setup.sh
-   ```
+2. Code holen, ohne GitHub-Login in der Shell:
+   - Im Browser (bei GitHub angemeldet) <https://github.com/ccadrian/Dienstplan-sync/archive/refs/heads/main.zip> herunterladen.
+   - In der Cloud Shell oben rechts **⋮ → Hochladen** und die ZIP-Datei auswählen.
+   - Dann in der Shell:
+     ```bash
+     unzip -q Dienstplan-sync-main.zip
+     cd Dienstplan-sync-main
+     bash scripts/setup.sh
+     ```
 3. Den Anweisungen folgen. Am Ende steht die Adresse der App, z.B. `https://dienstplan-sync-2cub5.web.app/`.
 
 Das Skript kann jederzeit erneut gestartet werden, zum Beispiel nach einem Update. Vorhandenes wird übernommen.
