@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dienstplan Sync</title>
+  <meta name="description" content="Dienstplan fotografieren, Termine landen im Google Kalender.">
+  <meta name="theme-color" content="#0b0d10">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Dienstplan">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main id="app" data-view="boot" aria-live="polite">
+
+    <!-- Anmelden -->
+    <section class="view" data-view="login">
+      <div class="center">
+        <img class="logo" src="icons/icon.svg" alt="" width="88" height="88">
+        <h1>Dienstplan Sync</h1>
+        <p class="muted">Foto vom Dienstplan, Termine im Kalender.</p>
+        <p class="notice" id="login-error" hidden></p>
+      </div>
+      <div class="actions">
+        <button class="btn primary wide" id="login-btn" type="button">Mit Google anmelden</button>
+      </div>
+    </section>
+
+    <!-- Startscreen -->
+    <section class="view" data-view="ready">
+      <div class="center grow">
+        <button class="shutter" id="camera-btn" type="button" aria-labelledby="shutter-label">
+          <span class="shutter-ring" aria-hidden="true"></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.4 4h5.2l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2.9l1.5-2ZM12 17.2a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4Zm0-1.9a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6Z"/></svg>
+        </button>
+        <p class="shutter-label" id="shutter-label">Foto aufnehmen</p>
+        <button class="link" id="gallery-btn" type="button">Aus Galerie wählen</button>
+        <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
+        <input id="gallery-input" type="file" accept="image/*" hidden>
+      </div>
+      <footer class="footer">
+        <span id="user-email"></span>
+        <button class="link small" id="logout-btn" type="button">Abmelden</button>
+      </footer>
+    </section>
+
+    <!-- Analyse läuft -->
+    <section class="view" data-view="busy">
+      <div class="center grow">
+        <div class="scan" aria-hidden="true">
+          <img id="preview" alt="">
+          <span class="scan-line"></span>
+        </div>
+        <p class="status" id="busy-text">Dienstplan wird gelesen …</p>
+        <p class="muted small">Meist unter einer Minute. Bitte App geöffnet lassen.</p>
+      </div>
+    </section>
+
+    <!-- Ergebnis -->
+    <section class="view" data-view="done">
+      <div class="result-head">
+        <svg class="check" viewBox="0 0 52 52" aria-hidden="true">
+          <circle cx="26" cy="26" r="24"/>
+          <path d="M15 27l7 7 15-15"/>
+        </svg>
+        <h2 id="result-title"></h2>
+        <p class="muted" id="result-sub"></p>
+        <ul class="warnings" id="result-warnings"></ul>
+      </div>
+      <ol class="days" id="result-list"></ol>
+      <div class="actions">
+        <a class="btn primary wide" id="calendar-link" href="https://calendar.google.com" target="_blank" rel="noopener">Im Kalender öffnen</a>
+        <button class="btn ghost wide" id="again-btn" type="button">Neues Foto</button>
+      </div>
+    </section>
+
+    <!-- Fehler -->
+    <section class="view" data-view="error">
+      <div class="center grow">
+        <div class="error-icon" aria-hidden="true">!</div>
+        <p class="status" id="error-text"></p>
+      </div>
+      <div class="actions">
+        <button class="btn primary wide" id="error-primary" type="button"></button>
+        <button class="btn ghost wide" id="error-secondary" type="button">Neues Foto</button>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

@@ -21,15 +21,11 @@ export interface Store {
   saveLogin(sub: string, data: { email: string; refreshTokenEnc: string; scope: string }): Promise<number>;
   setCalendarId(sub: string, calendarId: string | null): Promise<void>;
   bumpSessionVersion(sub: string): Promise<void>;
-  createState(state: string, ttlMs: number): Promise<void>;
-  /** true, wenn der State existierte und nicht abgelaufen war. Ist danach verbraucht. */
-  consumeState(state: string): Promise<boolean>;
   createLoginCode(codeHash: string, data: LoginCode, ttlMs: number): Promise<void>;
   consumeLoginCode(codeHash: string): Promise<LoginCode | null>;
 }
 
 const USERS = "users";
-const STATES = "oauthStates";
 const CODES = "loginCodes";
 
 export class FirestoreStore implements Store {
@@ -72,15 +68,6 @@ export class FirestoreStore implements Store {
     });
   }
 
-  async createState(state: string, ttlMs: number): Promise<void> {
-    await this.db.collection(STATES).doc(state).set({ expiresAt: new Date(Date.now() + ttlMs) });
-  }
-
-  async consumeState(state: string): Promise<boolean> {
-    const data = await this.consume(STATES, state);
-    return data !== null;
-  }
-
   async createLoginCode(codeHash: string, data: LoginCode, ttlMs: number): Promise<void> {
     await this.db.collection(CODES).doc(codeHash).set({ ...data, expiresAt: new Date(Date.now() + ttlMs) });
   }
@@ -108,7 +95,6 @@ export class FirestoreStore implements Store {
 /** Einfache Implementierung im Speicher für Tests und lokale Entwicklung. */
 export class MemoryStore implements Store {
   users = new Map<string, UserRecord>();
-  private states = new Map<string, number>();
   private codes = new Map<string, LoginCode & { expiresAt: number }>();
 
   async getUser(sub: string) {
@@ -131,16 +117,6 @@ export class MemoryStore implements Store {
   async bumpSessionVersion(sub: string) {
     const u = this.users.get(sub);
     if (u) u.sessionVersion++;
-  }
-
-  async createState(state: string, ttlMs: number) {
-    this.states.set(state, Date.now() + ttlMs);
-  }
-
-  async consumeState(state: string) {
-    const exp = this.states.get(state);
-    this.states.delete(state);
-    return exp !== undefined && exp > Date.now();
   }
 
   async createLoginCode(codeHash: string, data: LoginCode, ttlMs: number) {

@@ -44,21 +44,16 @@ describe.skipIf(!enabled)("Firebase Emulator", () => {
       expect(await store.getUser("gibts-nicht")).toBeNull();
     });
 
-    it("verbraucht States und Login-Codes genau einmal und beachtet den Ablauf", async () => {
-      const state = `state-${Date.now()}-abcdefgh`;
-      await store.createState(state, 60_000);
-      expect(await store.consumeState(state)).toBe(true);
-      expect(await store.consumeState(state)).toBe(false);
-
-      const expired = `expired-${Date.now()}-abcdefgh`;
-      await store.createState(expired, -1);
-      expect(await store.consumeState(expired)).toBe(false);
-
+    it("verbraucht Login-Codes genau einmal und beachtet den Ablauf", async () => {
       const code = sha256(`code-${Date.now()}`);
       await store.createLoginCode(code, { sub: "u", ver: 3 }, 60_000);
       expect(await store.consumeLoginCode(code)).toEqual({ sub: "u", ver: 3 });
       expect(await store.consumeLoginCode(code)).toBeNull();
-      expect(await store.consumeState("ungültig/id")).toBe(false);
+
+      const expired = sha256(`expired-${Date.now()}`);
+      await store.createLoginCode(expired, { sub: "u", ver: 0 }, -1);
+      expect(await store.consumeLoginCode(expired)).toBeNull();
+      expect(await store.consumeLoginCode("ungültig/id")).toBeNull();
     });
   });
 

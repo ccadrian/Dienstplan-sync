@@ -1,0 +1,14 @@
+{
+  "name": "dienstplan-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "test": "npm --prefix functions test && npm run test:web",
+    "test:web": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56"
+  }
+}

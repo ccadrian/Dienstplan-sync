@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "deploy": "firebase deploy --only functions,firestore",
-    "test:emulator": "bash scripts/emulator-test.sh"
+    "test:emulator": "bash scripts/emulator-test.sh",
+    "try": "npm run build && node scripts/try-analyze.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

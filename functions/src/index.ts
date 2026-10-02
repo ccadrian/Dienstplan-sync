@@ -1,10 +1,10 @@
-import { initializeApp } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 import { createApp, parseAllowedEmails } from "./app.js";
-import { createClaudeAnalyzer, type Effort } from "./claude.js";
+import { createClaudeAnalyzer, parseEffort } from "./claude.js";
 import { createGoogleOAuth } from "./oauth.js";
 import { Crypto } from "./session.js";
 import { FirestoreStore } from "./store.js";
@@ -27,8 +27,6 @@ const APP_URL = defineString("APP_URL", {
   description: "Adresse der PWA, z.B. https://name.github.io/Dienstplan-sync/",
 });
 
-const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
-
 /** Öffentliche Basis-URL dieser Function (für die OAuth Redirect URI). */
 function apiBaseUrl(): string {
   if (process.env.API_BASE_URL) return process.env.API_BASE_URL.replace(/\/+$/, "");
@@ -41,8 +39,7 @@ let handler: ReturnType<typeof createApp> | undefined;
 
 function getHandler(): ReturnType<typeof createApp> {
   if (handler) return handler;
-  initializeApp();
-  const effort = (process.env.CLAUDE_EFFORT ?? "high") as Effort;
+  if (getApps().length === 0) initializeApp();
   const appUrl = APP_URL.value().trim();
   handler = createApp({
     config: {
@@ -60,8 +57,9 @@ function getHandler(): ReturnType<typeof createApp> {
     analyze: createClaudeAnalyzer({
       apiKey: ANTHROPIC_API_KEY.value().trim(),
       model: process.env.CLAUDE_MODEL?.trim() || "claude-sonnet-5-5",
-      effort: EFFORTS.includes(effort) ? effort : "high",
+      effort: parseEffort(process.env.CLAUDE_EFFORT),
       hint: process.env.CLAUDE_HINT,
+      fallback: process.env.CLAUDE_FALLBACK !== "off",
     }),
     log: (message, data) => logger.info(message, data ?? {}),
   });
@@ -71,13 +69,27 @@ function getHandler(): ReturnType<typeof createApp> {
 export const api = onRequest(
   {
     region: REGION,
-    timeoutSeconds: 300, // Bildanalyse kann bis zu ~2 Minuten dauern
+    timeoutSeconds: 540, // Bildanalyse dauert meist unter 1 Minute, Puffer für Wiederholungen
     memory: "512MiB",
     maxInstances: 2,
     invoker: "public", // Zugriffsschutz erfolgt in der App (Session + Allowlist)
     secrets: [ANTHROPIC_API_KEY, GOOGLE_CLIENT_SECRET, SESSION_SECRET],
   },
   async (req, res) => {
-    await getHandler()(req, res);
+    let handle: ReturnType<typeof createApp>;
+    try {
+      handle = getHandler();
+    } catch (err) {
+      // z.B. fehlendes/zu kurzes Secret oder ungültige APP_URL
+      logger.error("Konfiguration fehlerhaft", err);
+      const origin = req.get("origin");
+      if (origin) res.set("Access-Control-Allow-Origin", origin);
+      res.status(500).json({
+        error: "internal",
+        message: "Das Backend ist nicht richtig eingerichtet. Details stehen in den Function-Logs.",
+      });
+      return;
+    }
+    await handle(req, res);
   },
 );

@@ -6,6 +6,14 @@ import { parseModelJson } from "./roster.js";
 export type ImageMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
+const EFFORTS: readonly Effort[] = ["low", "medium", "high", "xhigh", "max"];
+
+/** Liest den Denkaufwand aus der Konfiguration; Standard ist "high". */
+export function parseEffort(value: string | undefined): Effort {
+  const v = value?.trim().toLowerCase() as Effort | undefined;
+  return v && EFFORTS.includes(v) ? v : "high";
+}
+
 /** Liest einen Dienstplan aus einem Bild und liefert das (rohe) JSON-Objekt. */
 export type RosterAnalyzer = (image: Buffer, mediaType: ImageMediaType, today: string) => Promise<unknown>;
 
@@ -82,6 +90,8 @@ export interface ClaudeOptions {
   effort: Effort;
   /** Optionaler Zusatz zum Prompt, z.B. "Nur Einträge für den 2. Zug übernehmen." */
   hint?: string;
+  /** Server-seitiger Fallback auf ein anderes Modell bei Ablehnung (Standard: an). */
+  fallback?: boolean;
   /** Nur für Tests: eigener fetch. */
   fetch?: typeof fetch;
 }
@@ -99,7 +109,7 @@ export function buildUserText(today: string, hint?: string): string {
 export function createClaudeAnalyzer(options: ClaudeOptions): RosterAnalyzer {
   const client = new Anthropic({
     apiKey: options.apiKey,
-    maxRetries: 2,
+    maxRetries: 2, // Überlastung (429/529) kommt schnell zurück und wird wiederholt
     timeout: 240_000,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
@@ -111,8 +121,7 @@ export function createClaudeAnalyzer(options: ClaudeOptions): RosterAnalyzer {
         .stream({
           model: options.model,
           max_tokens: 32_000,
-          betas: [FALLBACK_BETA],
-          fallbacks: "default",
+          ...(options.fallback === false ? {} : { betas: [FALLBACK_BETA], fallbacks: "default" as const }),
           thinking: { type: "adaptive" },
           output_config: {
             effort: options.effort,

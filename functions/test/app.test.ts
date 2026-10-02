@@ -175,19 +175,27 @@ describe("App", () => {
       expect(cb.fragment).toEqual({ error: "scope" });
     });
 
-    it("weist unbekannte oder doppelt benutzte States und Codes ab", async () => {
-      const cb = await call("GET", "/auth/callback", { query: { code: "good-code", state: "x".repeat(43) } });
-      expect(cb.fragment).toEqual({ error: "state" });
+    it("weist gefälschte und abgelaufene States sowie doppelt benutzte Codes ab", async () => {
+      const forged = await call("GET", "/auth/callback", { query: { code: "good-code", state: "x".repeat(43) } });
+      expect(forged.fragment).toEqual({ error: "state" });
+      const foreign = new Crypto("f".repeat(48)).sign({ typ: "state", n: "x", exp: Date.parse("2030-01-01") });
+      const wrongKey = await call("GET", "/auth/callback", { query: { code: "good-code", state: foreign } });
+      expect(wrongKey.fragment).toEqual({ error: "state" });
+      const expired = crypto.sign({ typ: "state", n: "x", exp: Date.parse("2026-10-02T09:49:00Z") }); // 11 Min alt
+      const late = await call("GET", "/auth/callback", { query: { code: "good-code", state: expired } });
+      expect(late.fragment).toEqual({ error: "state" });
+      // ein Session-Token taugt nicht als State
+      const session = crypto.sign({ sub: "google-123", ver: 0, exp: Date.parse("2030-01-01") });
+      const mixed = await call("GET", "/auth/callback", { query: { code: "good-code", state: session } });
+      expect(mixed.fragment).toEqual({ error: "state" });
 
       const start = await call("GET", "/auth/start");
       const state = new URL(start.headers.location!).searchParams.get("state")!;
       const ok = await call("GET", "/auth/callback", { query: { code: "good-code", state } });
-      const again = await call("GET", "/auth/callback", { query: { code: "good-code", state } });
-      expect(again.fragment).toEqual({ error: "state" });
-
       await call("POST", "/auth/exchange", { body: { code: ok.fragment.code } });
       const reuse = await call("POST", "/auth/exchange", { body: { code: ok.fragment.code } });
       expect(reuse.statusCode).toBe(401);
+      expect(reuse.body.message).toContain("abgelaufen");
     });
 
     it("leitet bei Abbruch durch den Nutzer und bei Serverfehlern zurück zur App", async () => {
@@ -215,6 +223,12 @@ describe("App", () => {
       await login();
       const expired = crypto.sign({ sub: "google-123", ver: 0, exp: 1000 });
       expect((await call("GET", "/me", { headers: bearer(expired) })).statusCode).toBe(401);
+      const noExp = crypto.sign({ sub: "google-123", ver: 0 });
+      expect((await call("GET", "/me", { headers: bearer(noExp) })).statusCode).toBe(401);
+      // ein OAuth-State taugt nicht als Session
+      const start = await call("GET", "/auth/start");
+      const state = new URL(start.headers.location!).searchParams.get("state")!;
+      expect((await call("GET", "/me", { headers: bearer(state) })).statusCode).toBe(401);
     });
 
     it("sperrt Konten, die aus der Allowlist entfernt wurden", async () => {
@@ -326,7 +340,7 @@ describe("App", () => {
       const res = await call("POST", "/upload", { headers: bearer(token), rawBody: JPEG });
       expect(res.body.lowConfidence).toBe(1);
       expect(res.body.entries[0].title).toBe("[?] Antreten");
-      expect(res.body.warnings[0]).toContain("1 Eintrag");
+      expect(res.body.warnings).toEqual(["1 Eintrag ohne lesbares Datum übersprungen."]);
     });
   });
 

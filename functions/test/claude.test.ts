@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildUserText, createClaudeAnalyzer, detectImageType, ROSTER_SCHEMA } from "../src/claude.js";
+import { buildUserText, createClaudeAnalyzer, detectImageType, parseEffort, ROSTER_SCHEMA } from "../src/claude.js";
 import { AppError } from "../src/errors.js";
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
@@ -77,6 +77,14 @@ describe("Claude Analyse", () => {
     expect(text.text).toContain("Nur 2. Zug");
   });
 
+  it("lässt den Fallback weg, wenn er abgeschaltet ist", async () => {
+    const captured: Captured[] = [];
+    const f = createClaudeAnalyzer({ apiKey: "t", model: "m", effort: "low", fallback: false, fetch: fakeFetch({ text: "{}", captured }) });
+    await f(JPEG, "image/jpeg", "2026-10-02");
+    expect(captured[0]!.body.fallbacks).toBeUndefined();
+    expect(captured[0]!.headers.get("anthropic-beta") ?? "").not.toContain("server-side-fallback");
+  });
+
   it("parst auch Antworten mit Codeblock", async () => {
     const result = await analyzer(fakeFetch({ text: '```json\n{"entries": []}\n```' }))(JPEG, "image/jpeg", "2026-10-02");
     expect(result).toEqual({ entries: [] });
@@ -116,6 +124,12 @@ describe("Hilfsfunktionen", () => {
     expect(buildUserText("2026-10-05")).toBe(
       "Heute ist Mo, 2026-10-05 (KW 41/2026).\nLies alle Termine aus dem Dienstplan auf dem Foto aus.",
     );
+  });
+
+  it("liest den Denkaufwand tolerant", () => {
+    expect(parseEffort(undefined)).toBe("high");
+    expect(parseEffort(" Medium ")).toBe("medium");
+    expect(parseEffort("maximal")).toBe("high");
   });
 
   it("erkennt Bildformate an den Magic Bytes", () => {

@@ -41,6 +41,12 @@ export interface AppDeps {
   log?: (message: string, data?: Record<string, unknown>) => void;
 }
 
+interface OAuthState {
+  typ: "state"; // grenzt vom Session-Token ab (gleicher Signaturschlüssel)
+  n: string; // Zufallswert
+  exp: number; // Ablauf in Millisekunden
+}
+
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // Limit der Claude API pro Bild
 const STATE_TTL_MS = 10 * 60_000;
 const LOGIN_CODE_TTL_MS = 2 * 60_000;
@@ -93,7 +99,14 @@ export function createApp(deps: AppDeps) {
     const token = /^Bearer\s+(.+)$/i.exec(auth)?.[1];
     if (!token) throw errors.auth();
     const session = crypto.verify<SessionPayload>(token);
-    if (!session || typeof session.sub !== "string" || session.exp * 1000 < now().getTime()) throw errors.auth();
+    if (
+      !session ||
+      typeof session.sub !== "string" ||
+      typeof session.exp !== "number" ||
+      session.exp * 1000 < now().getTime()
+    ) {
+      throw errors.auth();
+    }
     const user = await store.getUser(session.sub);
     if (!user || user.sessionVersion !== session.ver) throw errors.auth();
     if (!isAllowed(user.email)) throw errors.forbidden();
@@ -103,15 +116,20 @@ export function createApp(deps: AppDeps) {
   // --- Login ----------------------------------------------------------------
 
   async function authStart(_req: HttpRequest, res: HttpResponse) {
-    const state = randomToken();
-    await store.createState(state, STATE_TTL_MS);
+    // Signierter State: belegt, dass der Login hier gestartet wurde, ohne Datenbank-Eintrag
+    const state = crypto.sign({ typ: "state", n: randomToken(16), exp: now().getTime() + STATE_TTL_MS } satisfies OAuthState);
     redirect(res, oauth.authUrl(state, config.allowedEmails.length === 1 ? config.allowedEmails[0] : undefined));
+  }
+
+  function validState(state: string): boolean {
+    const payload = state ? crypto.verify<OAuthState>(state) : null;
+    return payload?.typ === "state" && typeof payload.exp === "number" && payload.exp > now().getTime();
   }
 
   async function authCallback(req: HttpRequest, res: HttpResponse) {
     const q = (k: string) => (typeof req.query[k] === "string" ? (req.query[k] as string) : "");
     if (q("error")) return backToApp(res, { error: "denied" });
-    if (!q("state") || !(await store.consumeState(q("state")))) return backToApp(res, { error: "state" });
+    if (!validState(q("state"))) return backToApp(res, { error: "state" });
     if (!q("code")) return backToApp(res, { error: "denied" });
 
     const identity = await oauth.exchangeCode(q("code"));
@@ -220,10 +238,16 @@ export function createApp(deps: AppDeps) {
 
     const warnings: string[] = [];
     if (roster.skipped > 0) {
-      warnings.push(`${roster.skipped} Eintrag/Einträge ohne lesbares Datum übersprungen.`);
+      const n = roster.skipped;
+      warnings.push(`${n} ${n === 1 ? "Eintrag" : "Einträge"} ohne lesbares Datum übersprungen.`);
     }
     if (result.removeFailed > 0) {
-      warnings.push(`${result.removeFailed} alte(r) Termin(e) dieser Woche konnten nicht gelöscht werden.`);
+      const n = result.removeFailed;
+      warnings.push(
+        n === 1
+          ? "1 alter Termin dieser Woche konnte nicht gelöscht werden."
+          : `${n} alte Termine dieser Woche konnten nicht gelöscht werden.`,
+      );
     }
     const lowCount = roster.entries.filter((e) => e.lowConfidence).length;
 
