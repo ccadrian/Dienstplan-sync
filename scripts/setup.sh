@@ -76,9 +76,21 @@ gcloud config set project "$PROJECT_ID" >/dev/null 2>&1
 if [ "$(gcloud billing projects describe "$PROJECT_ID" --format='value(billingEnabled)' 2>/dev/null)" = "True" ]; then
   info "Abrechnung ist aktiv."
 else
-  mapfile -t ACCOUNTS < <(gcloud billing accounts list --filter='open=true' --format='value(name.basename(),displayName)')
+  ACCOUNTS=()
+  while IFS=$'\t' read -r id name open; do
+    [ "${open,,}" = "true" ] && ACCOUNTS+=("$id"$'\t'"$name")
+  done < <(gcloud billing accounts list --format='value(name.basename(),displayName,open)' 2>/dev/null || true)
   if [ "${#ACCOUNTS[@]}" -eq 0 ]; then
-    fail "Kein Rechnungskonto gefunden. Lege eins an (https://console.cloud.google.com/billing/create) und starte das Skript erneut."
+    cat <<EOT
+
+  Für Cloud Functions braucht Google ein Rechnungskonto (Kreditkarte). Bei normaler
+  Nutzung bleibt alles im kostenlosen Kontingent, ein Budget-Limit kannst du setzen.
+
+  1. https://console.cloud.google.com/billing/create öffnen
+  2. Konto anlegen (Land, Zahlungsart), mit $ACCOUNT
+  3. Danach hier einfach erneut starten:  bash scripts/setup.sh
+EOT
+    fail "Kein aktives Rechnungskonto für $ACCOUNT gefunden."
   elif [ "${#ACCOUNTS[@]}" -eq 1 ]; then
     BILLING="${ACCOUNTS[0]%%$'\t'*}"
   else
