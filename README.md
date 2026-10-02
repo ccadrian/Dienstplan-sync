@@ -3,7 +3,7 @@
 Foto vom Dienstplan machen, Termine sind im Google Kalender. Keine `.ics`-Datei, kein Export, keine Bestätigung.
 
 ```
-Handy (PWA, GitHub Pages)                Firebase Cloud Function "api" (europe-west3)
+Handy (PWA, Firebase Hosting)            Firebase Cloud Function "api" (europe-west3)
 ┌──────────────────────┐   JPEG    ┌─────────────────────────────────────────────┐
 │ Foto aufnehmen       │ ────────▶ │ 1. Session prüfen (Allowlist)               │
 │ verkleinern (≤2576px)│           │ 2. Google-Zugang prüfen (Refresh Token)     │
@@ -30,7 +30,27 @@ Handy (PWA, GitHub Pages)                Firebase Cloud Function "api" (europe-w
 - Nur E-Mail-Adressen aus `ALLOWED_EMAILS` können sich anmelden; die Liste wird bei jeder Anfrage geprüft.
 - Login: Google leitet zur Function zurück, die PWA bekommt einen Einmal-Code (2 Min gültig) und tauscht ihn gegen ein signiertes Session-Token. „Abmelden“ macht alle Sessions ungültig.
 
-## Einrichtung (einmalig, ca. 30 Minuten)
+## Automatische Einrichtung (empfohlen, ca. 10 Minuten)
+
+Das Skript `scripts/setup.sh` erledigt alles: Projekt anlegen, Abrechnung verknüpfen, APIs, Firestore, Secrets, Deploy von Backend und App. Nur den Google-Login-Bildschirm musst du selbst anklicken, weil Google dafür keine Schnittstelle anbietet. Das Skript zeigt dir dafür die genauen Links und Werte.
+
+Voraussetzungen: ein Rechnungskonto in Google Cloud (Kreditkarte) und ein [Anthropic API Key](https://console.anthropic.com/settings/keys).
+
+1. <https://shell.cloud.google.com> öffnen. Du bist dort schon mit deinem Google-Konto angemeldet.
+2. Repo holen (es ist privat, deshalb einmal bei GitHub anmelden):
+   ```bash
+   gh auth login        # GitHub.com → HTTPS → "Login with a web browser"
+   gh repo clone ccadrian/Dienstplan-sync
+   cd Dienstplan-sync
+   bash scripts/setup.sh
+   ```
+3. Den Anweisungen folgen. Am Ende steht die Adresse der App, z.B. `https://dienstplan-sync-2cub5.web.app/`.
+
+Das Skript kann jederzeit erneut gestartet werden, zum Beispiel nach einem Update. Vorhandenes wird übernommen.
+
+Die PWA liegt dabei auf **Firebase Hosting** und nicht auf GitHub Pages. Pages funktioniert bei privaten Repos nur mit einem bezahlten GitHub-Plan. Firebase Hosting ist kostenlos und wird im selben Schritt deployt.
+
+## Manuelle Einrichtung (Referenz, ca. 30 Minuten)
 
 Du brauchst: ein Google-Konto, eine Kreditkarte für den Firebase Blaze Plan, einen Anthropic API Key und einen Rechner mit Node.js 22.
 
@@ -103,11 +123,15 @@ Beim ersten Deploy aktiviert die CLI weitere Google-APIs (Cloud Build, Cloud Run
 
 Am Ende steht die Function-URL: `https://europe-west3-DEINE-PROJEKT-ID.cloudfunctions.net/api`
 
-### 7. PWA auf GitHub Pages
+### 7. PWA veröffentlichen
+
+**Firebase Hosting (Standard):** `web/config.js` wie unten anpassen, `APP_URL=https://DEINE-PROJEKT-ID.web.app/` in `functions/.env` setzen und `firebase deploy --only hosting` ausführen.
+
+**Alternativ GitHub Pages** (nur öffentliches Repo oder GitHub Pro):
 
 1. In `web/config.js` `DEIN-PROJEKT` durch deine Projekt-ID ersetzen und auf `main` committen.
 2. GitHub → Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Der Workflow „PWA auf GitHub Pages“ läuft bei jedem Push auf `main`, der `web/` ändert. Du kannst ihn auch unter **Actions** manuell starten.
+3. Den Workflow „PWA auf GitHub Pages“ unter **Actions** manuell starten.
 4. Die App liegt dann unter `https://ccadrian.github.io/Dienstplan-sync/`. Dieser Wert muss exakt als `APP_URL` in `functions/.env` stehen.
 
 ### 8. Auf dem Handy
@@ -150,7 +174,7 @@ ANTHROPIC_API_KEY=sk-ant-... node scripts/try-analyze.mjs ../tests/fixtures/dien
 | „Dieses Google-Konto ist nicht freigeschaltet“ | E-Mail fehlt in `ALLOWED_EMAILS`, oder du bist im Testmodus nicht als Testnutzer eingetragen. |
 | „Bitte erlaube … Zugriff auf den Kalender“ | Beim Login wurde das Kalender-Häkchen nicht gesetzt. Melde dich erneut an. |
 | Jede Woche „bitte neu anmelden“ | Die App ist noch im Status „Test“, siehe Hinweis in Schritt 3. |
-| Nach dem Google-Login „Keine Verbindung zum Server“ | Die Origin von `APP_URL` passt nicht zur Pages-Adresse, dadurch blockiert CORS. Logs: `firebase functions:log`. |
+| Nach dem Google-Login „Keine Verbindung zum Server“ | Die Origin von `APP_URL` passt nicht zur Adresse der App, dadurch blockiert CORS. Logs: `firebase functions:log`. |
 | „Das Backend ist nicht richtig eingerichtet“ | Ein Secret fehlt, oder `SESSION_SECRET` hat weniger als 32 Zeichen. |
 | Falscher Kalender gefüllt? | Unmöglich: Die App sieht nur Kalender, die sie selbst angelegt hat. |
 

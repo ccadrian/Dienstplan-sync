@@ -1,9 +1,8 @@
 name: PWA auf GitHub Pages
 
+# Optional: nur nötig, wenn die PWA auf GitHub Pages statt Firebase Hosting laufen soll
+# (bei privaten Repos nur mit GitHub Pro). Manuell starten unter Actions.
 on:
-  push:
-    branches: [main]
-    paths: ["web/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
